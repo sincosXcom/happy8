@@ -147,99 +147,70 @@ else:
     
     # ---------- 读取今日预测数据 ----------
     try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         creds = Credentials.from_service_account_info(st.secrets["google"], scopes=scopes)
         client = gspread.authorize(creds)
         spreadsheet_id = "18sLFvq7qpf8_TO7SRbUQS4ynkn4gANZzuT_dI7Z6ATw"
         sh = client.open_by_key(spreadsheet_id)
-        ws = sh.worksheet("tomorrow")   # 工作表名称请确认
-        
-        # 获取所有数据（包括表头）
+        ws = sh.worksheet("今日预测")   # 请确认工作表名
+
+        # 获取所有数据
         all_data = ws.get_all_values()
         if len(all_data) < 2:
             st.warning("今日预测工作表无数据")
         else:
-            headers = all_data[0]       # 第一行作为列名
-            rows = all_data[1:]         # 数据行
-            
-            # 自动识别期号列（通常第一列或包含“期号”/“No.”）
-            issue_col_idx = 0
+            headers = all_data[0]
+            rows = all_data[1:]
+
+            # 自动寻找期号列（第一列一般是序号，第二列才是期号）
+            issue_col_idx = 1  # 默认第二列为期号
             for i, h in enumerate(headers):
-                if "期号" in h or "No" in h or "期" in h:
+                if "期号" in h or "issue" in h.lower() or h.startswith("2026"):
                     issue_col_idx = i
                     break
-            
-            # 号码列：期号之后的连续20列（或者从第2列到第21列）
-            # 根据你的截图，号码从第2列到第21列（共20个）
-            number_start_idx = 1
-            number_end_idx = min(number_start_idx + 20, len(headers))
-            number_cols = list(range(number_start_idx, number_end_idx))
-            
-            # 命中数、温度列（可能位于最后）
-            hit_col = None
-            temp_col = None
-            for i, h in enumerate(headers):
-                if "命中" in h:
-                    hit_col = i
-                if "温度" in h:
-                    temp_col = i
-            
+
+            # 号码列：从期号列后开始，取20列
+            start_num = issue_col_idx + 1
+            end_num = start_num + 20
+            # 如果列不够20，则取尽可能多
+            number_cols = list(range(start_num, min(end_num, len(headers))))
+
             # 构建展示数据
-            display_rows = []
+            display_data = []
             for row in rows:
-                if len(row) < number_end_idx:
+                if len(row) <= issue_col_idx:
                     continue
-                issue = row[issue_col_idx] if issue_col_idx < len(row) else ""
-                numbers = [row[i] for i in number_cols if i < len(row) and row[i].strip()]
-                hit = row[hit_col] if hit_col is not None and hit_col < len(row) else ""
-                temp = row[temp_col] if temp_col is not None and temp_col < len(row) else ""
-                display_rows.append({
-                    "期号": issue,
-                    "号码": numbers,
-                    "命中数": hit,
-                    "温度": temp
-                })
-            
-            # ---------- 展示为漂亮的号码球表格 ----------
-            st.subheader("📊 今日高阶预测 18 组号码")
-            
-            # 自定义CSS样式（号码球）
-            st.markdown("""
-            <style>
-            .pred-ball {
-                display: inline-block;
-                width: 36px;
-                height: 36px;
-                line-height: 36px;
-                border-radius: 50%;
-                text-align: center;
-                margin: 2px;
-                font-size: 14px;
-                font-weight: bold;
-                color: white;
-                background-color: #f14545;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-            }
-            .pred-table td {
-                padding: 8px;
-                border-bottom: 1px solid #eee;
-            }
-            </style>
-            """, unsafe_allow_html=True)
-            
-            # 使用 HTML 表格展示（可滚动）
-            html_table = "<table class='pred-table' style='width:100%; border-collapse:collapse;'>"
-            html_table += "<tr><th>期号</th><th>20码推荐</th><th>命中数</th><th>温度</th></tr>"
-            for row in display_rows:
-                balls = "".join([f'<span class="pred-ball">{n}</span>' for n in row["号码"]])
-                html_table += f"<tr><td style='vertical-align:top;'><b>{row['期号']}</b></td><td>{balls}</td><td>{row['命中数']}</td><td>{row['温度']}</td></tr>"
-            html_table += "</table>"
-            st.markdown(html_table, unsafe_allow_html=True)
-            
+                issue = row[issue_col_idx].strip()
+                # 提取20个号码，过滤空值
+                numbers = []
+                for i in number_cols:
+                    if i < len(row) and row[i].strip():
+                        numbers.append(row[i].strip())
+                if not numbers:
+                    continue
+                # 将号码列表转为空格分隔的字符串
+                numbers_str = " ".join(numbers)
+                display_data.append({"期号": issue, "号码": numbers_str})
+
+            if not display_data:
+                st.info("今日预测表格无有效数据")
+            else:
+                st.subheader("📊 今日高阶预测 18 组号码")
+                # 使用 st.dataframe 显示，更紧凑美观
+                import pandas as pd
+                df = pd.DataFrame(display_data)
+                # 调整列宽
+                st.dataframe(df, use_container_width=True, height=400)
+                # 或者用 st.table
+                # st.table(df)
+
     except Exception as e:
         st.error(f"读取预测数据失败: {e}")
-        st.exception(e)  # 调试时可显示详细错误
-    
+        st.exception(e)   # 调试时可注释掉
+
     if st.button("退出登录", use_container_width=True):
         st.session_state.vip_unlocked = False
         st.rerun()
