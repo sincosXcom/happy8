@@ -148,16 +148,14 @@ else:
     try:
         import gspread
         from google.oauth2.service_account import Credentials
-        import pandas as pd
 
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         creds = Credentials.from_service_account_info(st.secrets["google"], scopes=scopes)
         client = gspread.authorize(creds)
         spreadsheet_id = "18sLFvq7qpf8_TO7SRbUQS4ynkn4gANZzuT_dI7Z6ATw"
         sh = client.open_by_key(spreadsheet_id)
-        ws = sh.worksheet("tomorrow")   # 工作表名称
+        ws = sh.worksheet("tomorrow")
 
-        # 获取所有数据
         all_data = ws.get_all_values()
         if len(all_data) < 2:
             st.warning("tomorrow 工作表无数据")
@@ -165,58 +163,63 @@ else:
             headers = all_data[0]
             rows = all_data[1:]
 
-            # 自动定位期号列（可能包含“期号”或“No”或类似）
+            # 定位期号列（必须包含“期号”或数字格式）
             issue_col = 0
             for i, h in enumerate(headers):
-                if "期号" in h or "No" in h or "issue" in h.lower():
+                if "期号" in str(h):
                     issue_col = i
                     break
+            # 如果没找到，默认第0列，但通常第1列是序号，第2列是期号，我们尝试找包含2026的单元格
+            if issue_col == 0 and len(rows) > 0:
+                # 检查第一行哪一列看起来像期号（4-8位数字）
+                for i in range(min(len(headers), 10)):
+                    val = rows[0][i] if i < len(rows[0]) else ""
+                    if str(val).isdigit() and len(str(val)) >= 6:
+                        issue_col = i
+                        break
 
-            # 自动定位号码列（从期号列之后连续取20列）
+            # 号码列：从期号列之后连续取20列
             num_start = issue_col + 1
             num_end = min(num_start + 20, len(headers))
             num_cols = list(range(num_start, num_end))
 
-            # 查找可能的类型、模型、温度列（如果存在）
+            # 查找类型、模型、温度列（可选）
             type_col = None
             model_col = None
             temp_col = None
             for i, h in enumerate(headers):
-                if "类型" in h or "type" in h.lower():
+                h_str = str(h)
+                if "类型" in h_str or "type" in h_str.lower():
                     type_col = i
-                if "模型" in h or "model" in h.lower():
+                if "模型" in h_str or "model" in h_str.lower():
                     model_col = i
-                if "温度" in h or "temp" in h.lower():
+                if "温度" in h_str or "temp" in h_str.lower():
                     temp_col = i
 
-            # 构建每组数据
+            # 解析每一行数据
             groups = []
+            common_issue = None   # 所有组共同的期号
             for row in rows:
                 if len(row) <= issue_col:
                     continue
-                issue = row[issue_col].strip()
+                issue_val = row[issue_col].strip() if issue_col < len(row) else ""
+                if not common_issue and issue_val:
+                    common_issue = issue_val   # 取第一个非空期号作为统一期号
                 numbers = []
                 for i in num_cols:
                     if i < len(row) and row[i].strip():
                         numbers.append(row[i].strip())
                 if len(numbers) == 0:
                     continue
-                # 提取标题部分
-                model_type = "LSTM"
-                model_name = "原始号码"
-                temperature = ""
-                if type_col is not None and type_col < len(row):
-                    model_type = row[type_col].strip()
-                if model_col is not None and model_col < len(row):
-                    model_name = row[model_col].strip()
-                if temp_col is not None and temp_col < len(row):
-                    temperature = row[temp_col].strip()
+                # 标题
+                model_type = row[type_col].strip() if type_col is not None and type_col < len(row) else "LSTM"
+                model_name = row[model_col].strip() if model_col is not None and model_col < len(row) else "原始号码"
+                temperature = row[temp_col].strip() if temp_col is not None and temp_col < len(row) else ""
                 title = f"{model_type} - {model_name}"
                 if temperature:
                     title += f" - 温度 {temperature}"
                 groups.append({
                     "title": title,
-                    "issue": issue,
                     "numbers": numbers
                 })
 
@@ -224,8 +227,11 @@ else:
                 st.info("tomorrow 工作表无有效预测数据")
             else:
                 st.subheader("📊 今日高阶预测 18 组号码")
+                if common_issue:
+                    st.markdown(f"**📅 预测期号：{common_issue}**")
+                st.markdown("---")
 
-                # 自定义样式：圆角方形号码块
+                # 自定义样式：横排号码球
                 st.markdown("""
                 <style>
                 .number-block {
@@ -241,10 +247,6 @@ else:
                     font-weight: bold;
                     font-size: 15px;
                     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-                    transition: transform 0.1s;
-                }
-                .number-block:hover {
-                    transform: scale(1.05);
                 }
                 .group-card {
                     background: #f8fafc;
@@ -258,36 +260,36 @@ else:
                     font-size: 1.2rem;
                     font-weight: bold;
                     color: #1e293b;
-                    margin-bottom: 8px;
+                    margin-bottom: 12px;
                     border-bottom: 1px solid #e2e8f0;
                     padding-bottom: 6px;
                 }
-                .group-issue {
-                    font-size: 0.85rem;
-                    color: #64748b;
-                    margin-bottom: 12px;
+                .numbers-container {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 4px;
+                    margin-top: 8px;
                 }
                 </style>
                 """, unsafe_allow_html=True)
 
-                # 逐个显示每组预测
+                # 逐个显示每组预测（横排号码）
                 for g in groups:
-                    with st.container():
-                        # 标题和期号
-                        st.markdown(f"""
-                        <div class="group-card">
-                            <div class="group-title">🎯 {g['title']}</div>
-                            <div class="group-issue">📅 期号：{g['issue']}</div>
-                            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-                        """, unsafe_allow_html=True)
-                        # 号码块
-                        for num in g['numbers']:
-                            st.markdown(f'<div class="number-block">{num}</div>', unsafe_allow_html=True)
-                        st.markdown("</div></div>", unsafe_allow_html=True)
+                    # 构建号码球的HTML字符串（一次性拼接）
+                    numbers_html = "".join([f'<div class="number-block">{num}</div>' for num in g['numbers']])
+                    card_html = f"""
+                    <div class="group-card">
+                        <div class="group-title">🎯 {g['title']}</div>
+                        <div class="numbers-container">
+                            {numbers_html}
+                        </div>
+                    </div>
+                    """
+                    st.markdown(card_html, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"读取预测数据失败: {e}")
-        st.exception(e)   # 调试时保留
+        st.exception(e)
 
     if st.button("退出登录", use_container_width=True):
         st.session_state.vip_unlocked = False
