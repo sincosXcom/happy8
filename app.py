@@ -16,26 +16,6 @@ class Redis:
             "Content-Type": "text/plain"
         })
 
-    def setex(self, key, ttl, value):
-        url = f"{self.url}/set/{key}?EX={ttl}"
-        resp = self.session.post(url, data=str(value))
-        # 调试输出，上线后可注释
-        st.write(f"DEBUG set: {resp.status_code} {resp.text}")
-        return resp.ok
-
-    def sadd(self, set_name, member):
-        url = f"{self.url}/sadd/{set_name}"
-        resp = self.session.post(url, data=member)
-        st.write(f"DEBUG sadd: {resp.status_code} {resp.text}")
-        return resp.ok
-
-    def scard(self, set_name):
-        url = f"{self.url}/scard/{set_name}"
-        resp = self.session.get(url)
-        st.write(f"DEBUG scard: {resp.status_code} {resp.text}")
-        if resp.ok:
-            return resp.json().get("result", 0)
-        return 0
 
 @st.cache_resource
 def get_redis_client():
@@ -56,7 +36,7 @@ def update_online():
         redis.setex(f"user:{uid}", 300, time.time())
         redis.sadd("online_users_set", uid)
         count = redis.scard("online_users_set")
-        st.write(f"DEBUG: set size = {count}")
+        # st.write(f"DEBUG: set size = {count}")
     except Exception as e:
         st.error(f"Redis 错误: {e}")
 
