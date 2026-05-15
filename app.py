@@ -136,11 +136,22 @@ st.markdown("---")
 st.header("🎯 高阶矩阵预测下一期")
 
 if not st.session_state.vip_unlocked:
-    st.error("🔒 该区域需解锁高阶权限。{请输入授权码}")
-    col1, col2 = st.columns([2, 1])
+    # 一行三列：提示文字（自定义浅绿色背景）、输入框、按钮
+    col1, col2, col3 = st.columns([2, 2, 1])
     with col1:
-        auth_code = st.text_input("请输入授权码", type="password", key="auth_input") # "请输入授权码", 
+        st.markdown(
+            '<div style="background-color:#d4edda; padding:8px 12px; border-radius:5px; color:#155724;">🔓 该区域需解锁高阶权限，请输入授权码</div>',
+            unsafe_allow_html=True
+        )
     with col2:
+        auth_code = st.text_input(
+            "",  # 空标签
+            placeholder="授权码",
+            type="password",
+            key="auth_input",
+            label_visibility="collapsed"  # 隐藏标签
+        )
+    with col3:
         if st.button("激活高级权限", use_container_width=True):
             ok, msg = verify_card_from_sheets(auth_code)
             if ok:
