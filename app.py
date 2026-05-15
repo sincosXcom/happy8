@@ -36,7 +36,7 @@ def update_online():
         redis.setex(f"user:{uid}", 300, time.time())
         redis.sadd("online_users_set", uid)
         count = redis.scard("online_users_set")
-        # st.write(f"DEBUG: set size = {count}")
+        st.write(f"DEBUG: set size = {count}")
     except Exception as e:
         st.error(f"Redis 错误: {e}")
 
