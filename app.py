@@ -69,27 +69,31 @@ def get_online_count():
 
 # ================== 3. Google Sheets 授权码验证 ==================
 def verify_card_from_sheets(user_code):
+    """安全验证卡密，不泄露任何数据"""
     try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+        from datetime import datetime
+
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         creds = Credentials.from_service_account_info(st.secrets["google"], scopes=scopes)
         client = gspread.authorize(creds)
         spreadsheet_id = "18sLFvq7qpf8_TO7SRbUQS4ynkn4gANZzuT_dI7Z6ATw"
         sh = client.open_by_key(spreadsheet_id)
-        ws = sh.worksheet("Cards")   # 授权码表
+        ws = sh.worksheet("Cards")   # 授权码工作表名称
 
-        # 使用 find 方法精确查找，不加载全表
+        # 使用 find 方法查找卡密（假设卡密在第一列 A）
         try:
-            cell = ws.find(user_code, in_column=1)  # 卡密列（A列）
+            cell = ws.find(user_code, in_column=1)
         except gspread.exceptions.CellNotFound:
             return False, "授权码不存在"
 
         row_num = cell.row
-        row_data = ws.row_values(row_num)   # 只读取这一行
-
+        row_data = ws.row_values(row_num)
         if len(row_data) < 4:
             return False, "数据格式错误"
 
-        # 列索引：0:卡密, 1:有效天数, 2:状态, 3:激活时间
+        # 根据你的实际列索引调整（默认：A=0卡密, B=1有效天数, C=2状态, D=3激活时间）
         code = row_data[0].strip()
         days_str = row_data[1].strip()
         status = row_data[2].strip() if len(row_data) > 2 else ""
@@ -100,20 +104,22 @@ def verify_card_from_sheets(user_code):
 
         now = datetime.now()
         if not active_time_str:
-            # 未激活：记录激活时间
-            ws.update_cell(row_num, 3, "已激活")   # C列状态
-            ws.update_cell(row_num, 4, now.strftime("%Y-%m-%d %H:%M:%S"))  # D列激活时间
+            # 未激活
+            ws.update_cell(row_num, 3, "已激活")
+            ws.update_cell(row_num, 4, now.strftime("%Y-%m-%d %H:%M:%S"))
             return True, int(days_str)
         else:
             start = datetime.strptime(active_time_str, "%Y-%m-%d %H:%M:%S")
-            used_days = (now - start).days
-            remaining = int(days_str) - used_days
+            used = (now - start).days
+            remaining = int(days_str) - used
             if remaining > 0:
                 return True, remaining
             else:
                 return False, f"授权已过期 {remaining} 天"
     except Exception as e:
-        # 不要打印异常详情，只返回通用错误
+        # 不要将异常详情返回给用户，只记录到日志（streamlit 会显示红色错误，但不暴露细节）
+        # 这里为了调试，可以暂时 st.error 但不要包含敏感信息
+        # 生产环境建议直接返回通用错误
         return False, "验证服务异常，请稍后重试"
 
 # ================== 4. 初始化 session_state ==================
