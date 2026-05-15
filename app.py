@@ -6,38 +6,7 @@ import time
 import uuid
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 
-# ========== 1. 在线人数功能（Redis） ==========
-@st.cache_resource
-def get_redis_client():
-    url = st.secrets["redis"]["url"]
-    token = st.secrets["redis"]["token"]
-    class Redis:
-        def __init__(self, url, token):
-            self.url = url.rstrip('/')
-            self.token = token
-        def setex(self, key, ttl, value):
-            data = {"key": key, "value": str(value), "ex": ttl}
-            r = requests.post(f"{self.url}/set", json=data, headers={"Authorization": f"Bearer {self.token}"})
-            return r.ok
-        def sadd(self, set_name, member):
-            data = {"set": set_name, "member": member}
-            r = requests.post(f"{self.url}/sadd", json=data, headers={"Authorization": f"Bearer {self.token}"})
-            return r.ok
-        def scard(self, set_name):
-            r = requests.get(f"{self.url}/scard/{set_name}", headers={"Authorization": f"Bearer {self.token}"})
-            if r.ok:
-                return r.json()["result"]
-            return 0
-    return Redis(url, token)
-
-def get_user_id():
-    ctx = get_script_run_ctx()
-    if ctx and ctx.session_id:
-        return ctx.session_id
-    if "user_id" not in st.session_state:
-        st.session_state.user_id = str(uuid.uuid4())
-    return st.session_state.user_id
-
+# ========== 1. 带调试功能的 Redis 类 ==========
 class Redis:
     def __init__(self, url, token):
         self.url = url.rstrip('/')
@@ -69,6 +38,23 @@ class Redis:
             return int(result) if result is not None else 0
         return 0
 
+# ========== 2. 获取 Redis 客户端（单例） ==========
+@st.cache_resource
+def get_redis_client():
+    url = st.secrets["redis"]["url"]
+    token = st.secrets["redis"]["token"]
+    return Redis(url, token)   # 注意：使用上面定义的带调试的类
+
+# ========== 3. 用户标识 ==========
+def get_user_id():
+    ctx = get_script_run_ctx()
+    if ctx and ctx.session_id:
+        return ctx.session_id
+    if "user_id" not in st.session_state:
+        st.session_state.user_id = str(uuid.uuid4())
+    return st.session_state.user_id
+
+# ========== 4. 更新在线状态 ==========
 def update_online():
     try:
         redis = get_redis_client()
@@ -85,14 +71,13 @@ def get_online_count():
     redis = get_redis_client()
     return redis.scard("online_users_set")
 
-# ========== 2. 页面配置 ==========
+# ========== 5. 页面配置 ==========
 st.set_page_config(page_title="多模型预测报告(快乐8)-SINCOSX", layout="wide")
 
-# 更新在线状态 + 侧边栏显示人数
 update_online()
 st.sidebar.metric("👥 当前在线", get_online_count())
 
-# ========== 3. 显示原来的 HTML 报告 ==========
+# ========== 6. 显示 HTML 报告 ==========
 report_file = "index.html"
 if os.path.exists(report_file):
     with open(report_file, "r", encoding="utf-8") as f:
