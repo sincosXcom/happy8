@@ -56,7 +56,14 @@ def update_online():
         redis.sadd("online_users_set", uid)
     except Exception as e:
         st.error(f"Redis 错误: {e}")
-
+# 放在 update_online() 下面，页面顶部
+try:
+    import gspread
+    from google.oauth2.service_account import Credentials
+    creds = Credentials.from_service_account_info(st.secrets["google"], scopes=["https://www.googleapis.com/auth/spreadsheets"])
+    st.sidebar.success("✅ Google Sheets 凭证加载成功")
+except Exception as e:
+    st.sidebar.error(f"❌ Google Sheets 错误: {e}")
 def get_online_count():
     redis = get_redis_client()
     return redis.scard("online_users_set")
