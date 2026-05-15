@@ -155,7 +155,7 @@ else:
         client = gspread.authorize(creds)
         spreadsheet_id = "18sLFvq7qpf8_TO7SRbUQS4ynkn4gANZzuT_dI7Z6ATw"
         sh = client.open_by_key(spreadsheet_id)
-        ws = sh.worksheet("今日预测")   # 请确认工作表名
+        ws = sh.worksheet("tomorrow")   # 请确认工作表名
 
         # 获取所有数据
         all_data = ws.get_all_values()
