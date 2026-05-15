@@ -157,7 +157,6 @@ update_online_status()
 st.sidebar.markdown(f"👥 当前在线: **{get_online_count()}**")
 
 # ================== 6. 授权码解锁高阶矩阵区域 ==================
-st.markdown("---")
 st.header("🎯 高阶矩阵 [下一期预测号]")
 
 if not st.session_state.vip_unlocked:
