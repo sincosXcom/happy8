@@ -16,6 +16,22 @@ class Redis:
             "Content-Type": "text/plain"
         })
 
+    def setex(self, key, ttl, value):
+        url = f"{self.url}/set/{key}?EX={ttl}"
+        resp = self.session.post(url, data=str(value))
+        return resp.ok
+
+    def sadd(self, set_name, member):
+        url = f"{self.url}/sadd/{set_name}"
+        resp = self.session.post(url, data=member)
+        return resp.ok
+
+    def scard(self, set_name):
+        url = f"{self.url}/scard/{set_name}"
+        resp = self.session.get(url)
+        if resp.ok:
+            return resp.json().get("result", 0)
+        return 0
 
 @st.cache_resource
 def get_redis_client():
@@ -36,7 +52,7 @@ def update_online():
         redis.setex(f"user:{uid}", 300, time.time())
         redis.sadd("online_users_set", uid)
         count = redis.scard("online_users_set")
-        st.write(f"DEBUG: set size = {count}")
+        # 可选：你可以加一个临时占位或什么都不做
     except Exception as e:
         st.error(f"Redis 错误: {e}")
 
