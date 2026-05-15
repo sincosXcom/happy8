@@ -129,7 +129,7 @@ if "vip_unlocked" not in st.session_state:
 
 # ================== 5. 更新在线人数并显示 ==================
 # 侧边栏标题
-st.sidebar.title("HAPPY8 LOTTO")
+st.sidebar.title("🎱 HAPPY8 LOTTO")
 
 # 左滚动公告（跑马灯）
 announcement_text = "🎯 欢迎使用快乐8预测系统 | 每日更新 | 高阶矩阵已上线 | 请妥善保管授权码"
