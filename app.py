@@ -10,7 +10,14 @@ from streamlit.runtime.scriptrunner import get_script_run_ctx
 
 # ================== 1. 页面配置（必须放在最前面） ==================
 st.set_page_config(page_title="多模型预测报告(快乐8)", layout="wide")
-
+try:
+    creds = Credentials.from_service_account_info(st.secrets["google"], scopes=["https://www.googleapis.com/auth/spreadsheets"])
+    client = gspread.authorize(creds)
+    sh = client.open("Lotto_Cards")
+    worksheet = sh.worksheet("Cards")
+    st.write(worksheet.get_all_values())  # 打印所有数据
+except Exception as e:
+    st.exception(e)
 # ================== 2. Redis 在线人数功能 ==================
 class RedisClient:
     def __init__(self, url, token):
