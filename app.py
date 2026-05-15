@@ -156,67 +156,27 @@ else:
         sh = client.open_by_key(spreadsheet_id)
         ws = sh.worksheet("tomorrow")
 
-        # 获取原始数据，并打印前几行看看（调试，之后删除）
+        # 获取所有数据
         all_data = ws.get_all_values()
-        st.write("调试：表格总行数", len(all_data))  # 临时，之后删除
-        if len(all_data) > 0:
-            st.write("调试：表头", all_data[0])      # 临时
-        
         if len(all_data) < 2:
-            st.warning("数据不足")
+            st.warning("tomorrow 工作表无数据")
         else:
-            headers = all_data[0]
-            # 跳过可能的空行，从第一行有数据开始
-            start_row = 1
-            rows = []
-            for i in range(1, len(all_data)):
-                if any(all_data[i]):
-                    rows.append(all_data[i])
-            # 如果还是空，直接取 all_data[1:]
-            if not rows:
-                rows = all_data[1:]
+            headers = all_data[0]          # 表头行
+            rows = all_data[1:]            # 数据行
 
-            # 尝试多种方式定位期号列
-            issue_col = None
-            # 1. 找包含“期号”的列
-            for i, h in enumerate(headers):
-                if "期号" in str(h):
-                    issue_col = i
-                    break
-            # 2. 如果没找到，找第一行数据中看起来像6位数字的列
-            if issue_col is None and rows:
-                for i in range(min(len(headers), 5)):
-                    val = rows[0][i] if i < len(rows[0]) else ""
-                    if str(val).isdigit() and len(str(val)) >= 6:
-                        issue_col = i
-                        break
-            # 3. 如果还没有，默认第0列
-            if issue_col is None:
-                issue_col = 0
-
-            # 号码列：从期号列之后开始，取接下来20列
-            num_start = issue_col + 1
-            num_end = min(num_start + 20, len(headers))
+            # 根据调试输出，表头索引：
+            # 0: "No.", 1: "issue", 2: "n1", 3: "n2", ... 21: "n20"
+            issue_col = 1                  # 期号在第2列（索引1）
+            num_start = 2                  # 第一个号码列索引2
+            num_end = min(num_start + 20, len(headers))  # 最多20列
             num_cols = list(range(num_start, num_end))
-            st.write("调试：期号列索引", issue_col, "号码列索引范围", num_cols)  # 临时
 
-            # 查找类型、模型、温度列（可能不存在）
-            type_col = None
-            model_col = None
-            temp_col = None
-            for i, h in enumerate(headers):
-                h_str = str(h).lower()
-                if "类型" in h_str or "type" in h_str:
-                    type_col = i
-                elif "模型" in h_str or "model" in h_str:
-                    model_col = i
-                elif "温度" in h_str or "temp" in h_str:
-                    temp_col = i
-
+            # 如果存在温度列（可能在更后面），可以在这里增加查找逻辑，暂时忽略
+            # 直接按行顺序展示所有组（不按温度分组，因为没发现温度列）
             groups = []
             common_issue = None
             for row in rows:
-                if issue_col >= len(row):
+                if len(row) <= issue_col:
                     continue
                 issue_val = row[issue_col].strip()
                 if issue_val and not common_issue:
@@ -227,44 +187,18 @@ else:
                         numbers.append(row[i].strip())
                 if len(numbers) == 0:
                     continue
-                # 标题
-                if type_col is not None and type_col < len(row):
-                    t = row[type_col].strip()
-                else:
-                    t = "LSTM"
-                if model_col is not None and model_col < len(row):
-                    m = row[model_col].strip()
-                else:
-                    m = "原始"
-                title = f"{t} - {m}"
-                temp = row[temp_col].strip() if temp_col is not None and temp_col < len(row) else ""
-                groups.append({
-                    "title": title,
-                    "numbers": numbers,
-                    "temperature": temp
-                })
+                # 为了区分不同模型，可以用行号或自定义名称，这里使用“预测组”+序号
+                groups.append(numbers)
 
-            st.write("调试：解析到组数", len(groups))  # 临时，之后删除
             if not groups:
-                st.warning("未解析到任何号码组，请检查表格格式")
-                # 可选：显示前几行原始数据帮助调试（注意不要泄露敏感）
-                # st.dataframe(rows[:3])  # 临时
+                st.info("未找到有效的预测号码（请检查是否有20列号码）")
             else:
                 st.subheader("📊 今日高阶预测 18 组号码")
                 if common_issue:
                     st.markdown(f"**📅 预测期号：{common_issue}**")
                 st.markdown("---")
 
-                # 按温度分组（如果没有温度，则所有组放到“预测”组）
-                temp_order = ["2.0", "1.0", "1.5"]
-                groups_by_temp = {}
-                for g in groups:
-                    temp = g["temperature"]
-                    if not temp:
-                        temp = "普通"
-                    groups_by_temp.setdefault(temp, []).append(g)
-
-                # 样式
+                # 样式：横排号码块
                 st.markdown("""
                 <style>
                 .number-block {
@@ -303,46 +237,33 @@ else:
                     gap: 4px;
                     margin-top: 8px;
                 }
-                .temp-section {
-                    margin-bottom: 32px;
-                }
-                .temp-header {
-                    font-size: 1.4rem;
-                    font-weight: bold;
-                    color: #0f172a;
-                    background: #eef2ff;
-                    padding: 8px 16px;
-                    border-radius: 28px;
-                    display: inline-block;
-                    margin-bottom: 20px;
-                }
                 </style>
                 """, unsafe_allow_html=True)
 
-                # 渲染卡片，并收集所有号码文本
-                all_text_lines = []
-                for temp_val in temp_order:
-                    if temp_val not in groups_by_temp:
-                        continue
-                    st.markdown(f'<div class="temp-section"><div class="temp-header">🌡️ 温度 {temp_val}</div></div>', unsafe_allow_html=True)
-                    for g in groups_by_temp[temp_val]:
-                        numbers_html = "".join([f'<div class="number-block">{num}</div>' for num in g['numbers']])
-                        st.markdown(f"""
-                        <div class="group-card">
-                            <div class="group-title">🎯 {g['title']}</div>
-                            <div class="numbers-container">{numbers_html}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        # 记录纯文本
-                        all_text_lines.append(f"【{g['title']}】 " + " ".join(g['numbers']))
+                # 收集所有号码文本（用于一键复制）
+                all_groups_text = []
 
-                # 提供可复制的文本框（更可靠）
-                if all_text_lines:
-                    full_text = "\n".join(all_text_lines)
-                    st.text_area("📋 全部号码（可选中复制）", full_text, height=200)
+                for idx, numbers in enumerate(groups):
+                    numbers_html = "".join([f'<div class="number-block">{num}</div>' for num in numbers])
+                    card_html = f"""
+                    <div class="group-card">
+                        <div class="group-title">🎯 预测组 {idx+1}</div>
+                        <div class="numbers-container">
+                            {numbers_html}
+                        </div>
+                    </div>
+                    """
+                    st.markdown(card_html, unsafe_allow_html=True)
+                    # 纯文本格式：号码用空格分隔
+                    text_line = f"预测组 {idx+1}: " + " ".join(numbers)
+                    all_groups_text.append(text_line)
+
+                # 提供一键复制功能（使用 text_area 让用户手动复制，避免 JS 问题）
+                full_text = "\n".join(all_groups_text)
+                st.text_area("📋 全部 18 组号码（可选中复制）", full_text, height=200)
 
     except Exception as e:
-        st.error(f"读取失败: {type(e).__name__}")
+        st.error(f"读取预测数据失败：{str(e)}")
 
     if st.button("退出登录", use_container_width=True):
         st.session_state.vip_unlocked = False
