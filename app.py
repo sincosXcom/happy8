@@ -1,53 +1,46 @@
 import streamlit as st
 import os
 import requests
-import json
 import time
 import uuid
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 
-# ========== 1. 带调试功能的 Redis 类 ==========
+# ========== Redis 客户端（手动 REST） ==========
 class Redis:
     def __init__(self, url, token):
         self.url = url.rstrip('/')
         self.token = token
         self.session = requests.Session()
-        self.session.headers.update({"Authorization": f"Bearer {self.token}"})
-
-    def _request(self, method, endpoint, params=None, data=None):
-        url = f"{self.url}/{endpoint}"
-        resp = self.session.request(method, url, params=params, data=data)
-        st.write(f"DEBUG {endpoint}: status={resp.status_code}, text={resp.text[:200]}")
-        return resp
+        self.session.headers.update({
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "text/plain"
+        })
 
     def setex(self, key, ttl, value):
-        # 使用路径参数：POST /set/<key>?ex=<ttl>  body = value 字符串
-        endpoint = f"set/{key}"
-        resp = self._request("POST", endpoint, params={"ex": ttl}, data=str(value))
+        url = f"{self.url}/set/{key}?EX={ttl}"
+        resp = self.session.post(url, data=str(value))
+        # 调试输出，上线后可注释
+        st.write(f"DEBUG set: {resp.status_code} {resp.text}")
         return resp.ok
 
     def sadd(self, set_name, member):
-        # 使用路径参数：POST /sadd/<set_name>  body = member 字符串
-        endpoint = f"sadd/{set_name}"
-        resp = self._request("POST", endpoint, data=member)
+        url = f"{self.url}/sadd/{set_name}"
+        resp = self.session.post(url, data=member)
+        st.write(f"DEBUG sadd: {resp.status_code} {resp.text}")
         return resp.ok
 
     def scard(self, set_name):
-        endpoint = f"scard/{set_name}"
-        resp = self._request("GET", endpoint)
+        url = f"{self.url}/scard/{set_name}"
+        resp = self.session.get(url)
+        st.write(f"DEBUG scard: {resp.status_code} {resp.text}")
         if resp.ok:
-            result = resp.json().get("result")
-            return int(result) if result is not None else 0
+            return resp.json().get("result", 0)
         return 0
 
-# ========== 2. 获取 Redis 客户端（单例） ==========
 @st.cache_resource
 def get_redis_client():
-    url = st.secrets["redis"]["url"]
-    token = st.secrets["redis"]["token"]
-    return Redis(url, token)   # 注意：使用上面定义的带调试的类
+    return Redis(st.secrets["redis"]["url"], st.secrets["redis"]["token"])
 
-# ========== 3. 用户标识 ==========
 def get_user_id():
     ctx = get_script_run_ctx()
     if ctx and ctx.session_id:
@@ -56,16 +49,14 @@ def get_user_id():
         st.session_state.user_id = str(uuid.uuid4())
     return st.session_state.user_id
 
-# ========== 4. 更新在线状态 ==========
 def update_online():
     try:
         redis = get_redis_client()
         uid = get_user_id()
-        key = f"user:{uid}"
-        redis.setex(key, 300, time.time())
+        redis.setex(f"user:{uid}", 300, time.time())
         redis.sadd("online_users_set", uid)
-        # 调试：打印当前集合大小
-        st.write(f"DEBUG: set size = {redis.scard('online_users_set')}")
+        count = redis.scard("online_users_set")
+        st.write(f"DEBUG: set size = {count}")
     except Exception as e:
         st.error(f"Redis 错误: {e}")
 
@@ -73,13 +64,13 @@ def get_online_count():
     redis = get_redis_client()
     return redis.scard("online_users_set")
 
-# ========== 5. 页面配置 ==========
+# ========== 页面配置 ==========
 st.set_page_config(page_title="多模型预测报告(快乐8)-SINCOSX", layout="wide")
 
 update_online()
 st.sidebar.metric("👥 当前在线", get_online_count())
 
-# ========== 6. 显示 HTML 报告 ==========
+# ========== 显示 HTML 报告 ==========
 report_file = "index.html"
 if os.path.exists(report_file):
     with open(report_file, "r", encoding="utf-8") as f:
