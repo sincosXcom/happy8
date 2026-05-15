@@ -163,13 +163,15 @@ else:
             headers = all_data[0]
             rows = all_data[1:]
 
-            # 1. 定位关键列索引
+            # 调试：输出总行数
+            st.write(f"调试：共读取 {len(rows)} 行数据")
+
+            # 定位关键列
             issue_col = None
             type_col = None
             model_col = None
             temp_col = None
             num_cols = []
-
             for i, h in enumerate(headers):
                 h_str = str(h).strip().lower()
                 if "issue" in h_str or "期号" in h_str:
@@ -180,21 +182,22 @@ else:
                     model_col = i
                 elif "温度" in h_str or "temp" in h_str or "wen" in h_str:
                     temp_col = i
-                elif h_str.startswith("n") and h_str[1:].isdigit():   # n1, n2, ..., n20
+                elif h_str.startswith("n") and h_str[1:].isdigit():
                     num_cols.append(i)
 
-            # 如果没找到标准的号码列，尝试连续20列（从第3列开始）
+            # 如果没有找到 n1..n20，尝试取第3列到第22列
             if len(num_cols) == 0 and len(headers) >= 22:
-                # 假定第3列到第22列是号码
                 num_cols = list(range(2, min(22, len(headers))))
-            elif len(num_cols) == 0:
-                st.error("无法识别号码列，请确保表头包含 n1~n20 或连续20个号码列")
+            if len(num_cols) == 0:
+                st.error("无法识别号码列，请检查表头是否包含 n1~n20")
                 st.stop()
 
-            # 2. 解析每一行数据
-            groups = []   # 每个元素: {"title": str, "numbers": list, "temperature": str}
+            # 调试输出列索引
+            st.write(f"调试：期号列={issue_col}, 类型列={type_col}, 模型列={model_col}, 温度列={temp_col}, 号码列数={len(num_cols)}")
+
+            groups = []
             common_issue = None
-            for row in rows:
+            for idx, row in enumerate(rows):
                 if len(row) < max(num_cols) + 1:
                     continue
                 # 期号
@@ -202,15 +205,23 @@ else:
                     issue_val = row[issue_col].strip()
                     if issue_val and not common_issue:
                         common_issue = issue_val
-                # 提取号码（保持顺序）
-                numbers = [row[i].strip() for i in num_cols if i < len(row) and row[i].strip()]
+                # 提取号码（允许不足20个，但会警告）
+                numbers = []
+                for i in num_cols:
+                    if i < len(row) and row[i].strip():
+                        numbers.append(row[i].strip())
                 if len(numbers) < 20:
-                    # 如果号码不足20，跳过此行（可能是不完整的行）
+                    # 如果号码不足20，可能是数据不完整，但仍然保留（但用户可能期望20个）
+                    st.warning(f"第{idx+2}行号码不足20个（实际{len(numbers)}个），请检查表格")
+                if not numbers:
                     continue
                 # 提取类型、模型、温度
                 type_val = row[type_col].strip() if type_col is not None and type_col < len(row) else "未知类型"
                 model_val = row[model_col].strip() if model_col is not None and model_col < len(row) else "未知模型"
                 temp_val = row[temp_col].strip() if temp_col is not None and temp_col < len(row) else ""
+                # 清理可能的多余字符（比如"1.5"后面有空格）
+                temp_val = temp_val.strip()
+                # 构造标题
                 title = f"{type_val} - {model_val}"
                 if temp_val:
                     title += f" - 温度 {temp_val}"
@@ -220,24 +231,34 @@ else:
                     "temperature": temp_val
                 })
 
+            st.write(f"调试：成功解析 {len(groups)} 组数据")
+            # 统计各温度组数量
+            temp_stats = {}
+            for g in groups:
+                t = g["temperature"]
+                temp_stats[t] = temp_stats.get(t, 0) + 1
+            st.write("调试：温度分组统计", temp_stats)
+
             if not groups:
-                st.info("未找到有效预测数据，请检查表格格式（需要期号列、20个号码列、类型/模型/温度列）")
+                st.info("未找到有效预测数据，请检查表格格式")
             else:
+                # 按温度分组
+                groups_by_temp = {}
+                for g in groups:
+                    t = g["temperature"]
+                    if t not in groups_by_temp:
+                        groups_by_temp[t] = []
+                    groups_by_temp[t].append(g)
+
+                # 期望的温度顺序
+                temp_order = ["2.0", "1.0", "1.5"]
+                # 实际存在的温度（按顺序排列，不存在的跳过）
+                display_temps = [t for t in temp_order if t in groups_by_temp]
+
                 st.subheader("📊 今日高阶预测 18 组号码")
                 if common_issue:
                     st.markdown(f"**📅 预测期号：{common_issue}**")
                 st.markdown("---")
-
-                # 3. 按温度分组（温度值可能为 "2.0", "1.0", "1.5"）
-                groups_by_temp = {}
-                for g in groups:
-                    temp = g["temperature"]
-                    if temp not in groups_by_temp:
-                        groups_by_temp[temp] = []
-                    groups_by_temp[temp].append(g)
-
-                # 指定顺序
-                temp_order = ["2.0", "1.0", "1.5"]
 
                 # 样式
                 st.markdown("""
@@ -294,13 +315,8 @@ else:
                 </style>
                 """, unsafe_allow_html=True)
 
-                # 收集全部文本（用于一键复制）
                 all_lines = []
-
-                # 按顺序显示温度分组
-                for temp_val in temp_order:
-                    if temp_val not in groups_by_temp:
-                        continue
+                for temp_val in display_temps:
                     st.markdown(f'<div class="temp-section"><div class="temp-header">🌡️ 温度 {temp_val}</div></div>', unsafe_allow_html=True)
                     for g in groups_by_temp[temp_val]:
                         numbers_html = "".join([f'<div class="number-block">{num}</div>' for num in g['numbers']])
@@ -313,19 +329,17 @@ else:
                         </div>
                         """
                         st.markdown(card_html, unsafe_allow_html=True)
-                        # 添加纯文本行用于复制
                         line = f"{g['title']}: " + " ".join(g['numbers'])
                         all_lines.append(line)
 
-                # 一键复制区域（使用文本框手动复制，安全可靠）
                 if all_lines:
                     full_text = "\n\n".join(all_lines)
                     st.text_area("📋 全部 18 组号码（可选中复制）", full_text, height=200)
 
     except Exception as e:
         st.error(f"读取预测数据失败：{str(e)}")
-        # 调试时可取消下面注释查看详细错误，但注意不要暴露敏感信息
-        # st.exception(e)
+        # 临时调试：输出详细异常（部署后可注释）
+        st.exception(e)
 
     if st.button("退出登录", use_container_width=True):
         st.session_state.vip_unlocked = False
