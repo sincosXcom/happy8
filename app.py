@@ -38,14 +38,7 @@ class RedisClient:
         if resp.ok:
             return resp.json().get("result", 0)
         return 0
-try:
-    creds = Credentials.from_service_account_info(st.secrets["google"], scopes=["https://www.googleapis.com/auth/spreadsheets"])
-    client = gspread.authorize(creds)
-    sh = client.open("Lotto_Cards")
-    worksheet = sh.worksheet("Cards")
-    st.write(worksheet.get_all_values())  # 打印所有数据
-except Exception as e:
-    st.exception(e)
+
 @st.cache_resource
 def get_redis():
     return RedisClient(st.secrets["redis"]["url"], st.secrets["redis"]["token"])
