@@ -73,37 +73,48 @@ def verify_card_from_sheets(user_code):
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         creds = Credentials.from_service_account_info(st.secrets["google"], scopes=scopes)
         client = gspread.authorize(creds)
-        
-        spreadsheet_id = "18sLFvq7qpf8_TO7SRbUQS4ynkn4gANZzuT_dI7Z6ATw"  # 你的表格ID
+        spreadsheet_id = "18sLFvq7qpf8_TO7SRbUQS4ynkn4gANZzuT_dI7Z6ATw"
         sh = client.open_by_key(spreadsheet_id)
-        worksheet = sh.worksheet("Cards")
-        
-        # 打印所有数据，确认能读取
-        all_data = worksheet.get_all_values()
-        st.write("表格内容：", all_data)   # 临时查看
-        
-        records = worksheet.get_all_records()
+        ws = sh.worksheet("Cards")   # 授权码表
+
+        # 使用 find 方法精确查找，不加载全表
+        try:
+            cell = ws.find(user_code, in_column=1)  # 卡密列（A列）
+        except gspread.exceptions.CellNotFound:
+            return False, "授权码不存在"
+
+        row_num = cell.row
+        row_data = ws.row_values(row_num)   # 只读取这一行
+
+        if len(row_data) < 4:
+            return False, "数据格式错误"
+
+        # 列索引：0:卡密, 1:有效天数, 2:状态, 3:激活时间
+        code = row_data[0].strip()
+        days_str = row_data[1].strip()
+        status = row_data[2].strip() if len(row_data) > 2 else ""
+        active_time_str = row_data[3].strip() if len(row_data) > 3 else ""
+
+        if status == "封禁":
+            return False, "授权码已被封禁"
+
         now = datetime.now()
-        
-        for idx, row in enumerate(records):
-            if str(row["卡密"]).strip() == user_code.strip():
-                if not row.get("激活时间"):
-                    row_num = idx + 2
-                    worksheet.update_cell(row_num, 3, "已激活")
-                    worksheet.update_cell(row_num, 4, now.strftime("%Y-%m-%d %H:%M:%S"))
-                    return True, int(row["有效天数"])
-                else:
-                    start = datetime.strptime(row["激活时间"], "%Y-%m-%d %H:%M:%S")
-                    used = (now - start).days
-                    remaining = int(row["有效天数"]) - used
-                    if remaining > 0:
-                        return True, remaining
-                    else:
-                        return False, f"授权已过期 {remaining} 天"
-        return False, "授权码不存在"
+        if not active_time_str:
+            # 未激活：记录激活时间
+            ws.update_cell(row_num, 3, "已激活")   # C列状态
+            ws.update_cell(row_num, 4, now.strftime("%Y-%m-%d %H:%M:%S"))  # D列激活时间
+            return True, int(days_str)
+        else:
+            start = datetime.strptime(active_time_str, "%Y-%m-%d %H:%M:%S")
+            used_days = (now - start).days
+            remaining = int(days_str) - used_days
+            if remaining > 0:
+                return True, remaining
+            else:
+                return False, f"授权已过期 {remaining} 天"
     except Exception as e:
-        st.exception(e)   # 打印完整堆栈
-        return False, f"验证服务异常: {str(e)}"
+        # 不要打印异常详情，只返回通用错误
+        return False, "验证服务异常，请稍后重试"
 
 # ================== 4. 初始化 session_state ==================
 if "vip_unlocked" not in st.session_state:
