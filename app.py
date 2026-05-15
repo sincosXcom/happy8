@@ -54,7 +54,6 @@ def update_online():
         uid = get_user_id()
         redis.setex(f"user:{uid}", 300, time.time())
         redis.sadd("online_users_set", uid)
-        # 不需要打印，静默更新
     except Exception as e:
         st.error(f"Redis 错误: {e}")
 
@@ -66,7 +65,8 @@ def get_online_count():
 st.set_page_config(page_title="多模型预测报告(快乐8)-SINCOSX", layout="wide")
 
 update_online()
-st.sidebar.metric("👥 当前在线", get_online_count())
+# 修改这一行即可：
+st.sidebar.markdown(f"👥 当前在线: **{get_online_count()}**")
 
 # ========== 显示 HTML 报告 ==========
 report_file = "index.html"
