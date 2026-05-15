@@ -39,11 +39,16 @@ def get_user_id():
     return st.session_state.user_id
 
 def update_online():
-    redis = get_redis_client()
-    uid = get_user_id()
-    key = f"user:{uid}"
-    redis.setex(key, 300, time.time())
-    redis.sadd("online_users_set", uid)
+    try:
+        redis = get_redis_client()
+        uid = get_user_id()
+        key = f"user:{uid}"
+        redis.setex(key, 300, time.time())
+        redis.sadd("online_users_set", uid)
+        # 调试：打印当前集合大小
+        st.write(f"DEBUG: set size = {redis.scard('online_users_set')}")
+    except Exception as e:
+        st.error(f"Redis 错误: {e}")
 
 def get_online_count():
     redis = get_redis_client()
