@@ -14,25 +14,27 @@ class Redis:
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"Bearer {self.token}"})
 
-    def _request(self, method, endpoint, json=None):
+    def _request(self, method, endpoint, params=None, data=None):
         url = f"{self.url}/{endpoint}"
-        resp = self.session.request(method, url, json=json)
-        # 调试：打印状态码和返回文本
+        resp = self.session.request(method, url, params=params, data=data)
         st.write(f"DEBUG {endpoint}: status={resp.status_code}, text={resp.text[:200]}")
         return resp
 
     def setex(self, key, ttl, value):
-        data = {"key": key, "value": str(value), "ex": ttl}
-        resp = self._request("POST", "set", json=data)
+        # 使用路径参数：POST /set/<key>?ex=<ttl>  body = value 字符串
+        endpoint = f"set/{key}"
+        resp = self._request("POST", endpoint, params={"ex": ttl}, data=str(value))
         return resp.ok
 
     def sadd(self, set_name, member):
-        data = {"set": set_name, "member": member}
-        resp = self._request("POST", "sadd", json=data)
+        # 使用路径参数：POST /sadd/<set_name>  body = member 字符串
+        endpoint = f"sadd/{set_name}"
+        resp = self._request("POST", endpoint, data=member)
         return resp.ok
 
     def scard(self, set_name):
-        resp = self._request("GET", f"scard/{set_name}")
+        endpoint = f"scard/{set_name}"
+        resp = self._request("GET", endpoint)
         if resp.ok:
             result = resp.json().get("result")
             return int(result) if result is not None else 0
