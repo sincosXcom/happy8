@@ -128,6 +128,31 @@ if "vip_unlocked" not in st.session_state:
     st.session_state.vip_days_left = 0
 
 # ================== 5. 更新在线人数并显示 ==================
+# 侧边栏标题
+st.sidebar.title("HAPPY8 LOTTO")
+
+# 左滚动公告（跑马灯）
+announcement_text = "🎯 欢迎使用快乐8预测系统 | 每日更新 | 高阶矩阵已上线 | 请妥善保管授权码"
+st.sidebar.markdown(
+    f"""
+    <div style="background-color:#f0f2f6; padding:6px; border-radius:8px; overflow:hidden; white-space:nowrap;">
+        <div style="display:inline-block; animation: scroll-left 12s linear infinite;">
+            {announcement_text}
+        </div>
+    </div>
+    <style>
+        @keyframes scroll-left {{
+            0% {{ transform: translateX(100%); }}
+            100% {{ transform: translateX(-100%); }}
+        }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# 横线分隔
+st.sidebar.divider()  # 或 st.sidebar.markdown("---")
+
 update_online_status()
 st.sidebar.markdown(f"👥 当前在线: **{get_online_count()}**")
 
