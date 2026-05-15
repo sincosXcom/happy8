@@ -163,27 +163,25 @@ else:
             headers = all_data[0]
             rows = all_data[1:]
 
-            # 定位期号列（必须包含“期号”或数字格式）
+            # 定位期号列
             issue_col = 0
             for i, h in enumerate(headers):
                 if "期号" in str(h):
                     issue_col = i
                     break
-            # 如果没找到，默认第0列，但通常第1列是序号，第2列是期号，我们尝试找包含2026的单元格
             if issue_col == 0 and len(rows) > 0:
-                # 检查第一行哪一列看起来像期号（4-8位数字）
                 for i in range(min(len(headers), 10)):
                     val = rows[0][i] if i < len(rows[0]) else ""
                     if str(val).isdigit() and len(str(val)) >= 6:
                         issue_col = i
                         break
 
-            # 号码列：从期号列之后连续取20列
+            # 号码列：期号之后连续20列
             num_start = issue_col + 1
             num_end = min(num_start + 20, len(headers))
             num_cols = list(range(num_start, num_end))
 
-            # 查找类型、模型、温度列（可选）
+            # 查找类型、模型、温度列
             type_col = None
             model_col = None
             temp_col = None
@@ -196,31 +194,29 @@ else:
                 if "温度" in h_str or "temp" in h_str.lower():
                     temp_col = i
 
-            # 解析每一行数据
-            groups = []
-            common_issue = None   # 所有组共同的期号
+            groups = []          # 存储每组数据：{title, numbers, temperature}
+            common_issue = None
             for row in rows:
                 if len(row) <= issue_col:
                     continue
                 issue_val = row[issue_col].strip() if issue_col < len(row) else ""
                 if not common_issue and issue_val:
-                    common_issue = issue_val   # 取第一个非空期号作为统一期号
+                    common_issue = issue_val
                 numbers = []
                 for i in num_cols:
                     if i < len(row) and row[i].strip():
                         numbers.append(row[i].strip())
                 if len(numbers) == 0:
                     continue
-                # 标题
+                # 提取标题组成部分
                 model_type = row[type_col].strip() if type_col is not None and type_col < len(row) else "LSTM"
                 model_name = row[model_col].strip() if model_col is not None and model_col < len(row) else "原始号码"
                 temperature = row[temp_col].strip() if temp_col is not None and temp_col < len(row) else ""
                 title = f"{model_type} - {model_name}"
-                if temperature:
-                    title += f" - 温度 {temperature}"
                 groups.append({
                     "title": title,
-                    "numbers": numbers
+                    "numbers": numbers,
+                    "temperature": temperature
                 })
 
             if not groups:
@@ -231,7 +227,16 @@ else:
                     st.markdown(f"**📅 预测期号：{common_issue}**")
                 st.markdown("---")
 
-                # 自定义样式：横排号码球
+                # 按温度分组：温度值 -> 组列表
+                temp_order = ["2.0", "1.0", "1.5"]   # 指定显示顺序
+                groups_by_temp = {}
+                for g in groups:
+                    temp = g["temperature"]
+                    if temp not in groups_by_temp:
+                        groups_by_temp[temp] = []
+                    groups_by_temp[temp].append(g)
+
+                # 样式（横排号码球）
                 st.markdown("""
                 <style>
                 .number-block {
@@ -270,22 +275,40 @@ else:
                     gap: 4px;
                     margin-top: 8px;
                 }
+                .temp-section {
+                    margin-bottom: 32px;
+                }
+                .temp-header {
+                    font-size: 1.4rem;
+                    font-weight: bold;
+                    color: #0f172a;
+                    background: #eef2ff;
+                    padding: 8px 16px;
+                    border-radius: 28px;
+                    display: inline-block;
+                    margin-bottom: 20px;
+                }
                 </style>
                 """, unsafe_allow_html=True)
 
-                # 逐个显示每组预测（横排号码）
-                for g in groups:
-                    # 构建号码球的HTML字符串（一次性拼接）
-                    numbers_html = "".join([f'<div class="number-block">{num}</div>' for num in g['numbers']])
-                    card_html = f"""
-                    <div class="group-card">
-                        <div class="group-title">🎯 {g['title']}</div>
-                        <div class="numbers-container">
-                            {numbers_html}
+                # 按指定顺序渲染温度分组
+                for temp_val in temp_order:
+                    if temp_val not in groups_by_temp:
+                        continue
+                    # 显示温度标题
+                    st.markdown(f'<div class="temp-section"><div class="temp-header">🌡️ 温度 {temp_val}</div></div>', unsafe_allow_html=True)
+                    # 遍历该温度下的所有组（通常是6组）
+                    for g in groups_by_temp[temp_val]:
+                        numbers_html = "".join([f'<div class="number-block">{num}</div>' for num in g['numbers']])
+                        card_html = f"""
+                        <div class="group-card">
+                            <div class="group-title">🎯 {g['title']}</div>
+                            <div class="numbers-container">
+                                {numbers_html}
+                            </div>
                         </div>
-                    </div>
-                    """
-                    st.markdown(card_html, unsafe_allow_html=True)
+                        """
+                        st.markdown(card_html, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"读取预测数据失败: {e}")
