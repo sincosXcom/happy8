@@ -5,7 +5,7 @@ import time
 import uuid
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 
-# ========== Redis 客户端（手动 REST） ==========
+# ========== Redis 客户端（完整方法） ==========
 class Redis:
     def __init__(self, url, token):
         self.url = url.rstrip('/')
@@ -17,16 +17,19 @@ class Redis:
         })
 
     def setex(self, key, ttl, value):
+        """设置带过期时间的键值（秒）"""
         url = f"{self.url}/set/{key}?EX={ttl}"
         resp = self.session.post(url, data=str(value))
         return resp.ok
 
     def sadd(self, set_name, member):
+        """向集合添加成员"""
         url = f"{self.url}/sadd/{set_name}"
         resp = self.session.post(url, data=member)
         return resp.ok
 
     def scard(self, set_name):
+        """获取集合成员数"""
         url = f"{self.url}/scard/{set_name}"
         resp = self.session.get(url)
         if resp.ok:
@@ -51,8 +54,7 @@ def update_online():
         uid = get_user_id()
         redis.setex(f"user:{uid}", 300, time.time())
         redis.sadd("online_users_set", uid)
-        count = redis.scard("online_users_set")
-        # 可选：你可以加一个临时占位或什么都不做
+        # 不需要打印，静默更新
     except Exception as e:
         st.error(f"Redis 错误: {e}")
 
