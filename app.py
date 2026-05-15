@@ -69,28 +69,28 @@ def get_online_count():
 
 # ================== 3. Google Sheets 授权码验证 ==================
 def verify_card_from_sheets(user_code):
-    """返回 (是否成功, 剩余天数或错误信息)"""
     try:
-        # 只需要 spreadsheets 权限，不需要 drive
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         creds = Credentials.from_service_account_info(st.secrets["google"], scopes=scopes)
         client = gspread.authorize(creds)
         
-        # 使用表格 ID 直接打开（避免 Drive 搜索权限问题）
-        spreadsheet_id = "18sLFvq7qpf8_TO7SRbUQS4ynkn4gANZzuT_dI7Z6ATw"  # 你的表格 ID
+        spreadsheet_id = "18sLFvq7qpf8_TO7SRbUQS4ynkn4gANZzuT_dI7Z6ATw"  # 你的表格ID
         sh = client.open_by_key(spreadsheet_id)
-        worksheet = sh.worksheet("Cards")        # 工作表名称必须为 "Cards"
+        worksheet = sh.worksheet("Cards")
+        
+        # 打印所有数据，确认能读取
+        all_data = worksheet.get_all_values()
+        st.write("表格内容：", all_data)   # 临时查看
         
         records = worksheet.get_all_records()
         now = datetime.now()
         
         for idx, row in enumerate(records):
             if str(row["卡密"]).strip() == user_code.strip():
-                # 未激活
                 if not row.get("激活时间"):
                     row_num = idx + 2
-                    worksheet.update_cell(row_num, 3, "已激活")      # C列:状态
-                    worksheet.update_cell(row_num, 4, now.strftime("%Y-%m-%d %H:%M:%S"))  # D列:激活时间
+                    worksheet.update_cell(row_num, 3, "已激活")
+                    worksheet.update_cell(row_num, 4, now.strftime("%Y-%m-%d %H:%M:%S"))
                     return True, int(row["有效天数"])
                 else:
                     start = datetime.strptime(row["激活时间"], "%Y-%m-%d %H:%M:%S")
@@ -102,7 +102,7 @@ def verify_card_from_sheets(user_code):
                         return False, f"授权已过期 {remaining} 天"
         return False, "授权码不存在"
     except Exception as e:
-        st.error(f"验证服务异常: {str(e)}")
+        st.exception(e)   # 打印完整堆栈
         return False, f"验证服务异常: {str(e)}"
 
 # ================== 4. 初始化 session_state ==================
