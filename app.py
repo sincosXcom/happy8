@@ -139,7 +139,7 @@ if not st.session_state.vip_unlocked:
     st.error("🔒 该区域需解锁高阶权限。{请输入授权码}")
     col1, col2 = st.columns([2, 1])
     with col1:
-        auth_code = st.text_input("请输入授权码" type="password", key="auth_input") # "请输入授权码", 
+        auth_code = st.text_input("请输入授权码：" “type="password"”, key="auth_input") # "请输入授权码", 
     with col2:
         if st.button("激活高级权限", use_container_width=True):
             ok, msg = verify_card_from_sheets(auth_code)
