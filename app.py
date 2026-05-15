@@ -365,6 +365,7 @@ else:
         st.rerun()
 
 # ================== 7. 显示原有的静态 HTML 报告 ==================
+st.markdown("---")
 report_file = "index.html"   # 请确认你的文件名
 if os.path.exists(report_file):
     with open(report_file, "r", encoding="utf-8") as f:
