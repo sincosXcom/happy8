@@ -71,13 +71,19 @@ def get_online_count():
 def verify_card_from_sheets(user_code):
     """返回 (是否成功, 剩余天数或错误信息)"""
     try:
-        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        # 只需要 spreadsheets 权限，不需要 drive
+        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         creds = Credentials.from_service_account_info(st.secrets["google"], scopes=scopes)
         client = gspread.authorize(creds)
-        sh = client.open("Lotto_Cards")          # 你的表格名称
-        worksheet = sh.worksheet("Cards")        # 工作表名称
+        
+        # 使用表格 ID 直接打开（避免 Drive 搜索权限问题）
+        spreadsheet_id = "18sLFvq7qpf8_TO7SRbUQS4ynkn4gANZzuT_dI7Z6ATw"  # 你的表格 ID
+        sh = client.open_by_key(spreadsheet_id)
+        worksheet = sh.worksheet("Cards")        # 工作表名称必须为 "Cards"
+        
         records = worksheet.get_all_records()
         now = datetime.now()
+        
         for idx, row in enumerate(records):
             if str(row["卡密"]).strip() == user_code.strip():
                 # 未激活
@@ -96,6 +102,7 @@ def verify_card_from_sheets(user_code):
                         return False, f"授权已过期 {remaining} 天"
         return False, "授权码不存在"
     except Exception as e:
+        st.error(f"验证服务异常: {str(e)}")
         return False, f"验证服务异常: {str(e)}"
 
 # ================== 4. 初始化 session_state ==================
