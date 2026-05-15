@@ -131,16 +131,7 @@ if "vip_unlocked" not in st.session_state:
 update_online_status()
 st.sidebar.markdown(f"👥 当前在线: **{get_online_count()}**")
 
-# ================== 6. 显示原有的静态 HTML 报告 ==================
-report_file = "index.html"   # 请确认你的文件名
-if os.path.exists(report_file):
-    with open(report_file, "r", encoding="utf-8") as f:
-        html_content = f.read()
-    st.components.v1.html(html_content, height=800, scrolling=True)
-else:
-    st.error(f"未找到报告文件：{report_file}，请先生成该文件。")
-
-# ================== 7. 授权码解锁高阶矩阵区域 ==================
+# ================== 6. 授权码解锁高阶矩阵区域 ==================
 st.markdown("---")
 st.header("🎯 高阶矩阵预测下一期")
 
@@ -336,3 +327,12 @@ else:
     if st.button("退出登录", use_container_width=True):
         st.session_state.vip_unlocked = False
         st.rerun()
+
+# ================== 6. 显示原有的静态 HTML 报告 ==================
+report_file = "index.html"   # 请确认你的文件名
+if os.path.exists(report_file):
+    with open(report_file, "r", encoding="utf-8") as f:
+        html_content = f.read()
+    st.components.v1.html(html_content, height=800, scrolling=True)
+else:
+    st.error(f"未找到报告文件：{report_file}，请先生成该文件。")
