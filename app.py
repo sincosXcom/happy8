@@ -136,10 +136,10 @@ st.markdown("---")
 st.header("🎯 高阶矩阵预测下一期")
 
 if not st.session_state.vip_unlocked:
-    st.error("🔒 该区域需解锁高阶权限。")
+    st.error("🔒 该区域需解锁高阶权限。{请输入授权码}")
     col1, col2 = st.columns([2, 1])
     with col1:
-        auth_code = st.text_input("请输入授权码", type="password", key="auth_input")
+        auth_code = st.text_input(type="password", key="auth_input") # "请输入授权码", 
     with col2:
         if st.button("激活高级权限", use_container_width=True):
             ok, msg = verify_card_from_sheets(auth_code)
@@ -328,7 +328,7 @@ else:
         st.session_state.vip_unlocked = False
         st.rerun()
 
-# ================== 6. 显示原有的静态 HTML 报告 ==================
+# ================== 7. 显示原有的静态 HTML 报告 ==================
 report_file = "index.html"   # 请确认你的文件名
 if os.path.exists(report_file):
     with open(report_file, "r", encoding="utf-8") as f:
