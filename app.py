@@ -125,7 +125,7 @@ else:
 
 # ================== 7. 授权码解锁高阶矩阵区域 ==================
 st.markdown("---")
-st.header("🎯 高阶矩阵预测 (马尔科夫链 12阶)")
+st.header("🎯 高阶矩阵预测下一期")
 
 if not st.session_state.vip_unlocked:
     st.error("🔒 该区域需解锁高阶权限。")
@@ -148,6 +148,7 @@ else:
     try:
         import gspread
         from google.oauth2.service_account import Credentials
+        import pandas as pd
 
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         creds = Credentials.from_service_account_info(st.secrets["google"], scopes=scopes)
@@ -156,32 +157,35 @@ else:
         sh = client.open_by_key(spreadsheet_id)
         ws = sh.worksheet("tomorrow")
 
+        # 获取所有数据（为了解析结构，但不会泄露敏感信息，因为这是预测数据）
         all_data = ws.get_all_values()
-        if len(all_data) < 2:
-            st.warning("tomorrow 工作表无数据")
+        if len(all_data) < 3:   # 至少要有表头+一行数据
+            st.warning("tomorrow 工作表数据不足")
         else:
+            # 假定第一行为表头，第二行开始为数据
             headers = all_data[0]
             rows = all_data[1:]
-
-            # 定位期号列
+            
+            # 找出真正的期号列（可能在第1列或第2列）
             issue_col = 0
             for i, h in enumerate(headers):
-                if "期号" in str(h):
+                if "期号" in str(h) or "issue" in str(h).lower():
                     issue_col = i
                     break
+            # 如果没找到，尝试找第一列或第二列中含有数字的行作为期号
             if issue_col == 0 and len(rows) > 0:
-                for i in range(min(len(headers), 10)):
-                    val = rows[0][i] if i < len(rows[0]) else ""
-                    if str(val).isdigit() and len(str(val)) >= 6:
+                # 检查前两列哪个更像期号（6位以上数字）
+                for i in range(2):
+                    if i < len(rows[0]) and rows[0][i].strip().isdigit() and len(rows[0][i].strip()) >= 6:
                         issue_col = i
                         break
-
-            # 号码列：期号之后连续20列
+            
+            # 号码列：从期号列之后开始，取20列（如果不足20则取实际列数）
             num_start = issue_col + 1
             num_end = min(num_start + 20, len(headers))
             num_cols = list(range(num_start, num_end))
-
-            # 查找类型、模型、温度列
+            
+            # 自动识别“类型”、“模型”、“温度”列（如果存在）
             type_col = None
             model_col = None
             temp_col = None
@@ -189,54 +193,62 @@ else:
                 h_str = str(h)
                 if "类型" in h_str or "type" in h_str.lower():
                     type_col = i
-                if "模型" in h_str or "model" in h_str.lower():
+                elif "模型" in h_str or "model" in h_str.lower():
                     model_col = i
-                if "温度" in h_str or "temp" in h_str.lower():
+                elif "温度" in h_str or "temp" in h_str.lower():
                     temp_col = i
-
-            groups = []          # 存储每组数据：{title, numbers, temperature}
+            
+            groups = []
             common_issue = None
             for row in rows:
                 if len(row) <= issue_col:
                     continue
-                issue_val = row[issue_col].strip() if issue_col < len(row) else ""
-                if not common_issue and issue_val:
+                issue_val = row[issue_col].strip()
+                if issue_val and not common_issue:
                     common_issue = issue_val
-                numbers = []
-                for i in num_cols:
-                    if i < len(row) and row[i].strip():
-                        numbers.append(row[i].strip())
-                if len(numbers) == 0:
+                # 提取20个号码，过滤空值
+                numbers = [row[i].strip() for i in num_cols if i < len(row) and row[i].strip()]
+                if len(numbers) < 20:
+                    # 如果不足20个，可能号码分布在多列？你的表格应该是正好20列
+                    # 这里简单取尽可能多的列
+                    pass
+                if not numbers:
                     continue
-                # 提取标题组成部分
-                model_type = row[type_col].strip() if type_col is not None and type_col < len(row) else "LSTM"
-                model_name = row[model_col].strip() if model_col is not None and model_col < len(row) else "原始号码"
+                # 构造标题
+                if type_col is not None and model_col is not None:
+                    t = row[type_col].strip() if type_col < len(row) else "LSTM"
+                    m = row[model_col].strip() if model_col < len(row) else "原始"
+                    title = f"{t} - {m}"
+                else:
+                    # 如果没有这些列，用行序号作为组名
+                    title = f"预测组 {len(groups)+1}"
                 temperature = row[temp_col].strip() if temp_col is not None and temp_col < len(row) else ""
-                title = f"{model_type} - {model_name}"
                 groups.append({
                     "title": title,
                     "numbers": numbers,
                     "temperature": temperature
                 })
-
+            
             if not groups:
-                st.info("tomorrow 工作表无有效预测数据")
+                st.info("tomorrow 工作表未找到有效的预测号码（可能需要检查列数是否为20）")
             else:
                 st.subheader("📊 今日高阶预测 18 组号码")
                 if common_issue:
                     st.markdown(f"**📅 预测期号：{common_issue}**")
                 st.markdown("---")
-
-                # 按温度分组：温度值 -> 组列表
-                temp_order = ["2.0", "1.0", "1.5"]   # 指定显示顺序
+                
+                # 按温度分组（如果温度列不存在，则所有组归为一个组）
+                temp_order = ["2.0", "1.0", "1.5"]
                 groups_by_temp = {}
                 for g in groups:
                     temp = g["temperature"]
+                    if not temp:
+                        temp = "普通"
                     if temp not in groups_by_temp:
                         groups_by_temp[temp] = []
                     groups_by_temp[temp].append(g)
-
-                # 样式（横排号码球）
+                
+                # 样式
                 st.markdown("""
                 <style>
                 .number-block {
@@ -290,15 +302,16 @@ else:
                 }
                 </style>
                 """, unsafe_allow_html=True)
-
-                # 按指定顺序渲染温度分组
+                
+                # 用于收集全部号码文本（一键复制用）
+                all_numbers_text = []
+                
+                # 按顺序渲染温度分组
                 for temp_val in temp_order:
                     if temp_val not in groups_by_temp:
                         continue
-                    # 显示温度标题
                     st.markdown(f'<div class="temp-section"><div class="temp-header">🌡️ 温度 {temp_val}</div></div>', unsafe_allow_html=True)
-                    # 遍历该温度下的所有组（通常是6组）
-                    for g in groups_by_temp[temp_val]:
+                    for idx, g in enumerate(groups_by_temp[temp_val]):
                         numbers_html = "".join([f'<div class="number-block">{num}</div>' for num in g['numbers']])
                         card_html = f"""
                         <div class="group-card">
@@ -309,11 +322,35 @@ else:
                         </div>
                         """
                         st.markdown(card_html, unsafe_allow_html=True)
+                        
+                        # 为该组生成纯文本格式（方便复制）
+                        numbers_text = " ".join(g['numbers'])
+                        all_numbers_text.append(f"【{g['title']}】{numbers_text}")
+                        
+                        # 添加一键复制按钮（复制当前组）
+                        if st.button(f"📋 复制本组", key=f"copy_{temp_val}_{idx}"):
+                            # 使用 JavaScript 复制到剪贴板
+                            st.markdown(f"""
+                                <script>
+                                navigator.clipboard.writeText("{numbers_text}");
+                                </script>
+                                """, unsafe_allow_html=True)
+                            st.success("已复制本组号码！")
+                
+                # 提供复制全部18组按钮
+                all_text = "\n".join(all_numbers_text)
+                if st.button("📋 一键复制全部 18 组号码", key="copy_all"):
+                    st.markdown(f"""
+                        <script>
+                        navigator.clipboard.writeText(`{all_text}`);
+                        </script>
+                        """, unsafe_allow_html=True)
+                    st.success("已复制全部18组号码！")
 
     except Exception as e:
-        st.error(f"读取预测数据失败: {e}")
-        st.exception(e)
-
+        st.error(f"读取预测数据失败，请检查工作表格式。错误类型：{type(e).__name__}")
+        # 不要打印详细错误，避免泄露
+    
     if st.button("退出登录", use_container_width=True):
         st.session_state.vip_unlocked = False
         st.rerun()
