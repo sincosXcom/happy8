@@ -145,71 +145,149 @@ if not st.session_state.vip_unlocked:
 else:
     st.success(f"🌟 VIP 已激活 | 剩余 {st.session_state.vip_days_left} 天")
     
-    # ---------- 读取今日预测数据 ----------
     try:
         import gspread
         from google.oauth2.service_account import Credentials
+        import pandas as pd
 
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         creds = Credentials.from_service_account_info(st.secrets["google"], scopes=scopes)
         client = gspread.authorize(creds)
         spreadsheet_id = "18sLFvq7qpf8_TO7SRbUQS4ynkn4gANZzuT_dI7Z6ATw"
         sh = client.open_by_key(spreadsheet_id)
-        ws = sh.worksheet("tomorrow")   # 请确认工作表名
+        ws = sh.worksheet("tomorrow")   # 工作表名称
 
         # 获取所有数据
         all_data = ws.get_all_values()
         if len(all_data) < 2:
-            st.warning("今日预测工作表无数据")
+            st.warning("tomorrow 工作表无数据")
         else:
             headers = all_data[0]
             rows = all_data[1:]
 
-            # 自动寻找期号列（第一列一般是序号，第二列才是期号）
-            issue_col_idx = 1  # 默认第二列为期号
+            # 自动定位期号列（可能包含“期号”或“No”或类似）
+            issue_col = 0
             for i, h in enumerate(headers):
-                if "期号" in h or "issue" in h.lower() or h.startswith("2026"):
-                    issue_col_idx = i
+                if "期号" in h or "No" in h or "issue" in h.lower():
+                    issue_col = i
                     break
 
-            # 号码列：从期号列后开始，取20列
-            start_num = issue_col_idx + 1
-            end_num = start_num + 20
-            # 如果列不够20，则取尽可能多
-            number_cols = list(range(start_num, min(end_num, len(headers))))
+            # 自动定位号码列（从期号列之后连续取20列）
+            num_start = issue_col + 1
+            num_end = min(num_start + 20, len(headers))
+            num_cols = list(range(num_start, num_end))
 
-            # 构建展示数据
-            display_data = []
+            # 查找可能的类型、模型、温度列（如果存在）
+            type_col = None
+            model_col = None
+            temp_col = None
+            for i, h in enumerate(headers):
+                if "类型" in h or "type" in h.lower():
+                    type_col = i
+                if "模型" in h or "model" in h.lower():
+                    model_col = i
+                if "温度" in h or "temp" in h.lower():
+                    temp_col = i
+
+            # 构建每组数据
+            groups = []
             for row in rows:
-                if len(row) <= issue_col_idx:
+                if len(row) <= issue_col:
                     continue
-                issue = row[issue_col_idx].strip()
-                # 提取20个号码，过滤空值
+                issue = row[issue_col].strip()
                 numbers = []
-                for i in number_cols:
+                for i in num_cols:
                     if i < len(row) and row[i].strip():
                         numbers.append(row[i].strip())
-                if not numbers:
+                if len(numbers) == 0:
                     continue
-                # 将号码列表转为空格分隔的字符串
-                numbers_str = " ".join(numbers)
-                display_data.append({"期号": issue, "号码": numbers_str})
+                # 提取标题部分
+                model_type = "LSTM"
+                model_name = "原始号码"
+                temperature = ""
+                if type_col is not None and type_col < len(row):
+                    model_type = row[type_col].strip()
+                if model_col is not None and model_col < len(row):
+                    model_name = row[model_col].strip()
+                if temp_col is not None and temp_col < len(row):
+                    temperature = row[temp_col].strip()
+                title = f"{model_type} - {model_name}"
+                if temperature:
+                    title += f" - 温度 {temperature}"
+                groups.append({
+                    "title": title,
+                    "issue": issue,
+                    "numbers": numbers
+                })
 
-            if not display_data:
-                st.info("今日预测表格无有效数据")
+            if not groups:
+                st.info("tomorrow 工作表无有效预测数据")
             else:
                 st.subheader("📊 今日高阶预测 18 组号码")
-                # 使用 st.dataframe 显示，更紧凑美观
-                import pandas as pd
-                df = pd.DataFrame(display_data)
-                # 调整列宽
-                st.dataframe(df, use_container_width=True, height=400)
-                # 或者用 st.table
-                # st.table(df)
+
+                # 自定义样式：圆角方形号码块
+                st.markdown("""
+                <style>
+                .number-block {
+                    display: inline-block;
+                    background: linear-gradient(135deg, #4b6cb7, #182848);
+                    color: white;
+                    border-radius: 12px;
+                    width: 40px;
+                    height: 40px;
+                    line-height: 40px;
+                    text-align: center;
+                    margin: 4px;
+                    font-weight: bold;
+                    font-size: 15px;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                    transition: transform 0.1s;
+                }
+                .number-block:hover {
+                    transform: scale(1.05);
+                }
+                .group-card {
+                    background: #f8fafc;
+                    border-radius: 16px;
+                    padding: 12px 16px;
+                    margin-bottom: 24px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+                    border-left: 6px solid #4b6cb7;
+                }
+                .group-title {
+                    font-size: 1.2rem;
+                    font-weight: bold;
+                    color: #1e293b;
+                    margin-bottom: 8px;
+                    border-bottom: 1px solid #e2e8f0;
+                    padding-bottom: 6px;
+                }
+                .group-issue {
+                    font-size: 0.85rem;
+                    color: #64748b;
+                    margin-bottom: 12px;
+                }
+                </style>
+                """, unsafe_allow_html=True)
+
+                # 逐个显示每组预测
+                for g in groups:
+                    with st.container():
+                        # 标题和期号
+                        st.markdown(f"""
+                        <div class="group-card">
+                            <div class="group-title">🎯 {g['title']}</div>
+                            <div class="group-issue">📅 期号：{g['issue']}</div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                        """, unsafe_allow_html=True)
+                        # 号码块
+                        for num in g['numbers']:
+                            st.markdown(f'<div class="number-block">{num}</div>', unsafe_allow_html=True)
+                        st.markdown("</div></div>", unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"读取预测数据失败: {e}")
-        st.exception(e)   # 调试时可注释掉
+        st.exception(e)   # 调试时保留
 
     if st.button("退出登录", use_container_width=True):
         st.session_state.vip_unlocked = False
