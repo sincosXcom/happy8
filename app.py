@@ -406,25 +406,29 @@ else:
                             st.info("没有高频号码")
                     
                     with st.expander("查看完整频次统计"):
-                        # 每行显示20个号码，共4行
-                        nums_per_row = 20
+                        # 每行显示10个圆形（因为圆形需要稍大间距），共8行
+                        nums_per_row = 10
                         all_nums = list(range(1, 81))
                         freq_list = [freq[n] for n in all_nums]
                         
-                        # 分成4行，每行20个
-                        for row_idx in range(4):
+                        # 分8行，每行10个
+                        for row_idx in range(8):
                             start = row_idx * nums_per_row
                             end = start + nums_per_row
                             cols = st.columns(nums_per_row)
                             for i, (num, cnt) in enumerate(zip(all_nums[start:end], freq_list[start:end])):
                                 with cols[i]:
-                                    # 根据次数设置背景色（用markdown不直接支持，但可以用html）
-                                    # 用简单的样式：次数为0时灰色，否则浅红色渐变
-                                    bg = "#f8d7da" if cnt > 0 else "#e9ecef"
+                                    bg_color = "#f8d7da" if cnt > 0 else "#e9ecef"
+                                    # 圆形设计：外圈圆，内数字，下方次数
                                     st.markdown(
-                                        f'<div style="text-align:center; background:{bg}; border-radius:8px; padding:4px;">'
-                                        f'<strong>{num}</strong><br><span style="font-size:12px;">{cnt}</span>'
-                                        f'</div>',
+                                        f'''
+                                        <div style="display: flex; flex-direction: column; align-items: center;">
+                                            <div style="background: {bg_color}; width: 45px; height: 45px; line-height: 45px; border-radius: 50%; text-align: center; font-weight: bold; font-size: 16px;">
+                                                {num}
+                                            </div>
+                                            <div style="font-size: 12px; margin-top: 4px;">{cnt}</div>
+                                        </div>
+                                        ''',
                                         unsafe_allow_html=True
                                     )
                         
