@@ -405,11 +405,33 @@ else:
                         else:
                             st.info("没有高频号码")
                     
-                    # 完整频次表
                     with st.expander("查看完整频次统计"):
-                        freq_df = pd.DataFrame(list(freq.items()), columns=["号码", "出现次数"])
-                        freq_df = freq_df.sort_values("出现次数", ascending=False)
-                        st.dataframe(freq_df, use_container_width=True, height=300)
+                        # 准备数据：号码1-80，出现次数
+                        all_nums = list(range(1, 81))
+                        freq_list = [freq[n] for n in all_nums]
+                        
+                        # 创建网格，每行20个号码（共4行）
+                        grid_html = """
+                        <div style="display: grid; grid-template-columns: repeat(20, minmax(50px, 60px)); gap: 8px; margin-top: 12px;">
+                        """
+                        for n, cnt in zip(all_nums, freq_list):
+                            # 根据次数设置背景色深浅
+                            intensity = min(255, 100 + cnt * 20)  # 次数越高颜色越深（红色）
+                            bg_color = f"rgb(255, {255 - cnt*15}, {255 - cnt*15})" if cnt > 0 else "#f0f0f0"
+                            grid_html += f"""
+                            <div style="text-align: center; background: {bg_color}; border-radius: 8px; padding: 5px;">
+                                <div style="font-weight: bold; font-size: 16px;">{n}</div>
+                                <div style="font-size: 12px; color: #333;">{cnt}</div>
+                            </div>
+                            """
+                        grid_html += "</div>"
+                        st.markdown(grid_html, unsafe_allow_html=True)
+                        
+                        # 可选：按次数降序排名的简洁列表
+                        st.markdown("**按出现次数排序（前10）**")
+                        sorted_items = sorted(freq.items(), key=lambda x: x[1], reverse=True)[:10]
+                        top_html = " ".join([f'<span style="background:#e9ecef; padding:4px 8px; border-radius:12px;">{n}:{c}</span>' for n,c in sorted_items])
+                        st.markdown(top_html, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"读取预测数据失败：{str(e)}")
