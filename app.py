@@ -286,7 +286,7 @@ else:
                     display: inline-block;
                     background: linear-gradient(135deg, #4b6cb7, #182848);
                     color: white;
-                    border-radius: 12px;
+                    border-radius: 50%;
                     width: 40px;
                     height: 40px;
                     line-height: 40px;
