@@ -4,6 +4,7 @@ import requests
 import time
 import uuid
 import gspread
+import pandas as pd
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from streamlit.runtime.scriptrunner import get_script_run_ctx
@@ -356,29 +357,31 @@ else:
                     full_text = "\n\n".join(all_lines)
                     st.text_area("📋 全部 18 组号码（可选中复制）", full_text, height=200)
 
-                # ========== 新增：号码频次分析 ==========
+                # ========== 号码频次分析 ==========
                 st.markdown("---")
                 st.subheader("📊 18组号码出现次数分析")
-                
+
                 if st.button("🔍 分析号码出现次数", key="analyze_btn"):
                     # 统计1~80每个号码的出现次数
                     freq = {i: 0 for i in range(1, 81)}
                     for g in groups:
                         for num in g['numbers']:
-                            n = int(num)
-                            if 1 <= n <= 80:
-                                freq[n] += 1
+                            try:
+                                n = int(num)
+                                if 1 <= n <= 80:
+                                    freq[n] += 1
+                            except:
+                                pass
                     
-                    # 找出从未出现的号码（遗漏）
+                    # 遗漏号码（出现0次）
                     missing = [str(n) for n in range(1, 81) if freq[n] == 0]
-                    # 找出高频号码（出现3次及以上，可按需调整）
+                    # 热号（出现 >= 3 次）
                     hot = [str(n) for n in range(1, 81) if freq[n] >= 3]
                     
                     col1, col2 = st.columns(2)
                     with col1:
                         st.metric("📉 遗漏号码个数", len(missing))
                         if missing:
-                            # 显示遗漏号码为彩色球
                             missing_html = "".join([f'<div class="number-block" style="background: #6c757d;">{n}</div>' for n in missing])
                             st.markdown(f'<div class="numbers-container" style="margin-top:8px;">{missing_html}</div>', unsafe_allow_html=True)
                         else:
@@ -391,7 +394,7 @@ else:
                         else:
                             st.info("没有高频号码")
                     
-                    # 可选的完整频次表格（折叠）
+                    # 完整频次表（可折叠）
                     with st.expander("查看完整频次统计"):
                         freq_df = pd.DataFrame(list(freq.items()), columns=["号码", "出现次数"])
                         freq_df = freq_df.sort_values("出现次数", ascending=False)
