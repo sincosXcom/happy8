@@ -406,28 +406,29 @@ else:
                             st.info("没有高频号码")
                     
                     with st.expander("查看完整频次统计"):
-                        # 准备数据：号码1-80，出现次数
+                        # 每行显示20个号码，共4行
+                        nums_per_row = 20
                         all_nums = list(range(1, 81))
                         freq_list = [freq[n] for n in all_nums]
                         
-                        # 创建网格，每行20个号码（共4行）
-                        grid_html = """
-                        <div style="display: grid; grid-template-columns: repeat(20, minmax(50px, 60px)); gap: 8px; margin-top: 12px;">
-                        """
-                        for n, cnt in zip(all_nums, freq_list):
-                            # 根据次数设置背景色深浅
-                            intensity = min(255, 100 + cnt * 20)  # 次数越高颜色越深（红色）
-                            bg_color = f"rgb(255, {255 - cnt*15}, {255 - cnt*15})" if cnt > 0 else "#f0f0f0"
-                            grid_html += f"""
-                            <div style="text-align: center; background: {bg_color}; border-radius: 8px; padding: 5px;">
-                                <div style="font-weight: bold; font-size: 16px;">{n}</div>
-                                <div style="font-size: 12px; color: #333;">{cnt}</div>
-                            </div>
-                            """
-                        grid_html += "</div>"
-                        st.markdown(grid_html, unsafe_allow_html=True)
+                        # 分成4行，每行20个
+                        for row_idx in range(4):
+                            start = row_idx * nums_per_row
+                            end = start + nums_per_row
+                            cols = st.columns(nums_per_row)
+                            for i, (num, cnt) in enumerate(zip(all_nums[start:end], freq_list[start:end])):
+                                with cols[i]:
+                                    # 根据次数设置背景色（用markdown不直接支持，但可以用html）
+                                    # 用简单的样式：次数为0时灰色，否则浅红色渐变
+                                    bg = "#f8d7da" if cnt > 0 else "#e9ecef"
+                                    st.markdown(
+                                        f'<div style="text-align:center; background:{bg}; border-radius:8px; padding:4px;">'
+                                        f'<strong>{num}</strong><br><span style="font-size:12px;">{cnt}</span>'
+                                        f'</div>',
+                                        unsafe_allow_html=True
+                                    )
                         
-                        # 可选：按次数降序排名的简洁列表
+                        # 按出现次数排序（前10）
                         st.markdown("**按出现次数排序（前10）**")
                         sorted_items = sorted(freq.items(), key=lambda x: x[1], reverse=True)[:10]
                         top_html = " ".join([f'<span style="background:#e9ecef; padding:4px 8px; border-radius:12px;">{n}:{c}</span>' for n,c in sorted_items])
