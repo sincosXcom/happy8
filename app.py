@@ -373,28 +373,39 @@ else:
                             except:
                                 pass
                     
-                    # 遗漏号码（出现0次）
                     missing = [str(n) for n in range(1, 81) if freq[n] == 0]
-                    # 热号（出现 >= 3 次）
                     hot = [str(n) for n in range(1, 81) if freq[n] >= 3]
                     
                     col1, col2 = st.columns(2)
                     with col1:
                         st.metric("📉 遗漏号码个数", len(missing))
                         if missing:
-                            missing_html = "".join([f'<div class="number-block" style="background: #6c757d;">{n}</div>' for n in missing])
-                            st.markdown(f'<div class="numbers-container" style="margin-top:8px;">{missing_html}</div>', unsafe_allow_html=True)
+                            # 使用网格布局，每行20个
+                            grid_style = """
+                            <style>
+                            .number-grid {
+                                display: grid;
+                                grid-template-columns: repeat(20, minmax(0, 40px));
+                                gap: 4px;
+                                margin-top: 8px;
+                            }
+                            </style>
+                            """
+                            st.markdown(grid_style, unsafe_allow_html=True)
+                            missing_html = "".join([f'<div class="number-block" style="background: #6c757d; width: 36px; height: 36px; line-height: 36px;">{n}</div>' for n in missing])
+                            st.markdown(f'<div class="number-grid">{missing_html}</div>', unsafe_allow_html=True)
                         else:
                             st.info("没有遗漏号码，每个号码至少出现一次")
                     with col2:
                         st.metric("🔥 热号（出现≥3次）个数", len(hot))
                         if hot:
-                            hot_html = "".join([f'<div class="number-block" style="background: #dc3545;">{n}</div>' for n in hot])
-                            st.markdown(f'<div class="numbers-container" style="margin-top:8px;">{hot_html}</div>', unsafe_allow_html=True)
+                            st.markdown(grid_style, unsafe_allow_html=True)  # 复用样式
+                            hot_html = "".join([f'<div class="number-block" style="background: #dc3545; width: 36px; height: 36px; line-height: 36px;">{n}</div>' for n in hot])
+                            st.markdown(f'<div class="number-grid">{hot_html}</div>', unsafe_allow_html=True)
                         else:
                             st.info("没有高频号码")
                     
-                    # 完整频次表（可折叠）
+                    # 完整频次表
                     with st.expander("查看完整频次统计"):
                         freq_df = pd.DataFrame(list(freq.items()), columns=["号码", "出现次数"])
                         freq_df = freq_df.sort_values("出现次数", ascending=False)
