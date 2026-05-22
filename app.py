@@ -165,7 +165,7 @@ if not st.session_state.vip_unlocked:
     col1, col2, col3 = st.columns([2, 2, 1])
     with col1:
         st.markdown(
-            '<div align="center" style="background-color:#cfe5ff; padding:8px 12px; border-radius:5px; color:#004085;">🔓 该区域需解锁高阶权限，请输入授权码</div>',
+            '<div align="center" style="background-color:#cfe5ff; padding:8px 12px; border-radius:5px; color:#004085;">🔓 高阶权限需解锁，请输入授权码</div>',
             unsafe_allow_html=True
         )
     with col2:
