@@ -455,8 +455,8 @@ st.markdown("""
         iframe {
             width: 100% !important;
             border: none !important;
-            padding: 5 !important;
-            margin: 5 !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
         /* 如果是新版 Streamlit，可能还需要覆盖它的外层容器 */
         div[data-testid="stCustomComponentV1"] {
