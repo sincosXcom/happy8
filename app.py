@@ -446,11 +446,31 @@ else:
         st.rerun()
 
 # ================== 7. 显示原有的静态 HTML 报告 ==================
+
 st.markdown("---")
+
+# 新增这段 CSS，用来撑满 iframe 并去除边距
+st.markdown("""
+    <style>
+        iframe {
+            width: 100% !important;
+            border: none !important;
+            padding: 5 !important;
+            margin: 5 !important;
+        }
+        /* 如果是新版 Streamlit，可能还需要覆盖它的外层容器 */
+        div[data-testid="stCustomComponentV1"] {
+            width: 100% !important;
+            padding: 0 !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 report_file = "index.html"   # 请确认你的文件名
 if os.path.exists(report_file):
     with open(report_file, "r", encoding="utf-8") as f:
         html_content = f.read()
-    st.components.v1.html(html_content, height=800, scrolling=True)
+    # 注意：这里可以把 height 调大一点，例如 900 或 1000，避免内部太挤
+    st.components.v1.html(html_content, height=1000, scrolling=True)
 else:
     st.error(f"未找到报告文件：{report_file}，请先生成该文件。")
